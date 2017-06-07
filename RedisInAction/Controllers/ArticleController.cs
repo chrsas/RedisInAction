@@ -24,7 +24,7 @@ namespace RedisInAction.Controllers
         protected IDatabase Cache { get; } = Connection.GetDatabase();
 
         // GET: api/Article
-        public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order= "score")
+        public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order = "score")
         {
             var start = (pageIndex - 1) * pageElements;
             var end = start + pageElements - 1;
@@ -38,7 +38,7 @@ namespace RedisInAction.Controllers
                                       join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
                                       select new { a, ad.Value })
                 {
-                    if(entry.a.PropertyType == typeof(int))
+                    if (entry.a.PropertyType == typeof(int))
                         entry.a.SetValue(article, int.Parse(entry.Value.ToString()));
                     else
                         entry.a.SetValue(article, entry.Value.ToString());
@@ -120,6 +120,20 @@ namespace RedisInAction.Controllers
                 Cache.SetRemove($"group:{item}:", article);
             }
             return Ok();
+        }
+
+        [HttpGet]
+        [ActionName("grouped")]
+        public IHttpActionResult GetGroupArticles([FromUri]string group, [FromUri]int pageIndex, [FromUri]int pageElements = 25, [FromUri]string order = "score")
+        {
+            var key = $"{order}:{group}:";
+            if (!Cache.KeyExists(key))
+            {
+                Cache.SortedSetCombineAndStore(SetOperation.Intersect, key, $"group:{group}:", $"{order}:",
+                    Aggregate.Max);
+                Cache.KeyExpire(key, new TimeSpan(0, 1, 0));
+            }
+            return Get(pageIndex, pageElements, key.Substring(0, key.Length - 1));
         }
     }
 }
