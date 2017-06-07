@@ -107,9 +107,18 @@ namespace RedisInAction.Controllers
             return Ok(Cache.HashIncrement(articleKey, "votes"));
         }
 
-        public IHttpActionResult AddRemoveGroup()
+        [HttpPost]
+        public IHttpActionResult AddRemoveGroups(int id, [FromUri]string[] toAdd, [FromUri]string[] toRemove)
         {
-            
+            var article = $"article:{id}";
+            foreach (var item in toAdd)
+            {
+                Cache.SetAdd($"group:{item}:", article);
+            }
+            foreach (var item in toRemove)
+            {
+                Cache.SetRemove($"group:{item}:", article);
+            }
             return Ok();
         }
     }
