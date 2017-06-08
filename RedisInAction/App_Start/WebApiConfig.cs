@@ -11,7 +11,7 @@ namespace RedisInAction
         public static void Register(HttpConfiguration config)
         {
             // Web API 配置和服务
-            new Thread(Lookout.CleanSessions){IsBackground = true}.Start();
+            new Thread(Lookout.CleanFullSessions){IsBackground = true}.Start();
             // Web API 路由
             config.MapHttpAttributeRoutes();
 

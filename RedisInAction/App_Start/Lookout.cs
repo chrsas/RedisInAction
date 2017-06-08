@@ -17,7 +17,7 @@ namespace RedisInAction
 
         private const int LIMIT = 1000_0000;
 
-        public static void CleanSessions()
+        public static void CleanFullSessions()
         {
             var cache = RedisConnectionHelp.Connection.GetDatabase();
             while (!quit)
@@ -30,7 +30,8 @@ namespace RedisInAction
                 }
                 var endIndex = Math.Min(size - LIMIT, 100);
                 var tokens = cache.SortedSetRangeByRank("recent:", 0, endIndex - 1);
-                var sessionKeys = tokens.Select(t => (RedisKey)$"viewed:{t}").ToArray();
+                var sessionKeys = tokens.Select(t => (RedisKey)$"viewed:{t}").
+                    Union(tokens.Select(t => (RedisKey)$"cart:{t}")).ToArray();
                 cache.KeyDelete(sessionKeys);
                 cache.HashDelete("login:", tokens);
                 cache.SortedSetRemove("recent:", tokens);
