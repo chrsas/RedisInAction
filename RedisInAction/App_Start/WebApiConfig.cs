@@ -11,7 +11,8 @@ namespace RedisInAction
         public static void Register(HttpConfiguration config)
         {
             // Web API 配置和服务
-            new Thread(Lookout.CleanFullSessions){IsBackground = true}.Start();
+            new Thread(Lookout.CleanFullSessions) { IsBackground = true }.Start();
+            new Thread(Lookout.CacheRows) { IsBackground = true }.Start();
             // Web API 路由
             config.MapHttpAttributeRoutes();
 
@@ -19,7 +20,7 @@ namespace RedisInAction
                 name: "DefaultApi",
                 routeTemplate: "api/{controller}/{id}",
                 defaults: new { id = RouteParameter.Optional },
-                constraints: new {id = @"\d*"}
+                constraints: new { id = @"\d*" }
             );
 
             config.Routes.MapHttpRoute(
