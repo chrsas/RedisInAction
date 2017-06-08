@@ -10,7 +10,7 @@ namespace RedisInAction.App_Start
 {
     public class CartController : ApiController
     {
-        protected IDatabase Cache { get; } = RedisConnectionHelp.Connection.GetDatabase();
+        protected IDatabase Redis { get; } = RedisConnectionHelp.Connection.GetDatabase();
         // GET: api/Cart
         public IEnumerable<string> Get()
         {
@@ -27,9 +27,9 @@ namespace RedisInAction.App_Start
         public void Post([FromUri]string session,[FromUri]string item, [FromUri]int count)
         {
             if (count <= 0)
-                Cache.HashDelete($"cart:{session}", item);
+                Redis.HashDelete($"cart:{session}", item);
             else
-                Cache.HashSet($"cart:{session}", item, count);
+                Redis.HashSet($"cart:{session}", item, count);
         }
 
         // PUT: api/Cart/5

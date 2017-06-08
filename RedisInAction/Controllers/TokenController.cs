@@ -10,7 +10,7 @@ namespace RedisInAction.Controllers
 {
     public class TokenController : ApiController
     {
-        protected IDatabase Cache { get; } = RedisConnectionHelp.Connection.GetDatabase();
+        protected IDatabase Redis { get; } = RedisConnectionHelp.Connection.GetDatabase();
 
         // GET: api/Token
         public IEnumerable<string> Get()
@@ -28,13 +28,13 @@ namespace RedisInAction.Controllers
         public void Post([FromUri]string token, [FromUri]int userId, [FromUri]string item)
         {
             var timestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-            Cache.HashSet("login:", token, userId);
-            Cache.SortedSetAdd("recent:", token, timestamp);
+            Redis.HashSet("login:", token, userId);
+            Redis.SortedSetAdd("recent:", token, timestamp);
             if (item == null)
                 return;
-            Cache.SortedSetAdd($"viewed:{token}", item, timestamp);
+            Redis.SortedSetAdd($"viewed:{token}", item, timestamp);
             // 只保留最近浏览的25个
-            Cache.SortedSetRemoveRangeByRank($"viewed:{token}", 0, -26);
+            Redis.SortedSetRemoveRangeByRank($"viewed:{token}", 0, -26);
         }
 
         // PUT: api/Token/5
@@ -50,7 +50,7 @@ namespace RedisInAction.Controllers
         [HttpGet]
         public IHttpActionResult Check([FromUri]string token)
         {
-            return Ok(Cache.HashGet("login:", token));
+            return Ok(Redis.HashGet("login:", token));
         }
     }
 }

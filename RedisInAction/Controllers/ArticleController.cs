@@ -13,19 +13,19 @@ namespace RedisInAction.Controllers
 {
     public class ArticleController : ApiController
     {
-        protected IDatabase Cache { get; } = RedisConnectionHelp.Connection.GetDatabase();
+        protected IDatabase Redis { get; } = RedisConnectionHelp.Connection.GetDatabase();
 
         // GET: api/Article
         public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order = "score")
         {
             var start = (pageIndex - 1) * pageElements;
             var end = start + pageElements - 1;
-            var ids = Cache.SortedSetRangeByRank($"{order}:", start, end, Order.Descending);
+            var ids = Redis.SortedSetRangeByRank($"{order}:", start, end, Order.Descending);
             var articles = new List<Article>();
             foreach (var id in ids)
             {
                 var article = new Article();
-                var articleData = Cache.HashGetAll(id.ToString());
+                var articleData = Redis.HashGetAll(id.ToString());
                 foreach (var entry in from ad in articleData
                                       join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
                                       select new { a, ad.Value })
@@ -49,13 +49,13 @@ namespace RedisInAction.Controllers
         // POST: api/Article
         public IHttpActionResult Post([FromUri]string title, [FromUri]int userId, [FromUri]string link)
         {
-            var articleId = Cache.StringIncrement("article:");
+            var articleId = Redis.StringIncrement("article:");
             var voted = $"voted:{articleId}";
-            Cache.SetAdd(voted, $"user:{userId}");
-            Cache.KeyExpire(voted, new TimeSpan(7, 0, 0, 0));
+            Redis.SetAdd(voted, $"user:{userId}");
+            Redis.KeyExpire(voted, new TimeSpan(7, 0, 0, 0));
             var publishTime = DateTimeOffset.Now.ToUnixTimeSeconds();
             var article = $"article:{articleId}";
-            Cache.HashSet(article, new[]
+            Redis.HashSet(article, new[]
             {
                 new HashEntry("id", articleId),
                 new HashEntry("title", title),
@@ -64,8 +64,8 @@ namespace RedisInAction.Controllers
                 new HashEntry("time", publishTime),
                 new HashEntry("votes", 1),
             });
-            Cache.SortedSetAdd("score:", article, publishTime + VOTE_SCORE);
-            Cache.SortedSetAdd("time:", article, publishTime);
+            Redis.SortedSetAdd("score:", article, publishTime + VOTE_SCORE);
+            Redis.SortedSetAdd("time:", article, publishTime);
             return Ok(articleId);
         }
 
@@ -85,18 +85,18 @@ namespace RedisInAction.Controllers
         public IHttpActionResult Vote(int id, [FromUri]int userId)
         {
             var articleKey = $"article:{id}";
-            if (!Cache.KeyExists(articleKey))
+            if (!Redis.KeyExists(articleKey))
                 return BadRequest("article does not exist");
             var cutoff = DateTimeOffset.Now.AddDays(-7).ToUnixTimeSeconds();
-            var articleTime = Cache.SortedSetScore("time:", articleKey);
+            var articleTime = Redis.SortedSetScore("time:", articleKey);
             if (!articleTime.HasValue)
                 return BadRequest("article's publish time lost");
             if (cutoff > articleTime.Value)
                 return BadRequest("out of time");
-            if (!Cache.SetAdd($"voted:{id}", $"user:{userId}"))
+            if (!Redis.SetAdd($"voted:{id}", $"user:{userId}"))
                 return BadRequest("you have already voted this article");
-            Cache.SortedSetIncrement("score:", articleKey, VOTE_SCORE);
-            return Ok(Cache.HashIncrement(articleKey, "votes"));
+            Redis.SortedSetIncrement("score:", articleKey, VOTE_SCORE);
+            return Ok(Redis.HashIncrement(articleKey, "votes"));
         }
 
         [HttpPost]
@@ -105,11 +105,11 @@ namespace RedisInAction.Controllers
             var article = $"article:{id}";
             foreach (var item in toAdd)
             {
-                Cache.SetAdd($"group:{item}:", article);
+                Redis.SetAdd($"group:{item}:", article);
             }
             foreach (var item in toRemove)
             {
-                Cache.SetRemove($"group:{item}:", article);
+                Redis.SetRemove($"group:{item}:", article);
             }
             return Ok();
         }
@@ -119,11 +119,11 @@ namespace RedisInAction.Controllers
         public IHttpActionResult GetGroupArticles([FromUri]string group, [FromUri]int pageIndex, [FromUri]int pageElements = 25, [FromUri]string order = "score")
         {
             var key = $"{order}:{group}:";
-            if (!Cache.KeyExists(key))
+            if (!Redis.KeyExists(key))
             {
-                Cache.SortedSetCombineAndStore(SetOperation.Intersect, key, $"group:{group}:", $"{order}:",
+                Redis.SortedSetCombineAndStore(SetOperation.Intersect, key, $"group:{group}:", $"{order}:",
                     Aggregate.Max);
-                Cache.KeyExpire(key, new TimeSpan(0, 1, 0));
+                Redis.KeyExpire(key, new TimeSpan(0, 1, 0));
             }
             return Get(pageIndex, pageElements, key.Substring(0, key.Length - 1));
         }

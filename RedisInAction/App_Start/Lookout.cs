@@ -19,22 +19,22 @@ namespace RedisInAction
 
         public static void CleanFullSessions()
         {
-            var cache = RedisConnectionHelp.Connection.GetDatabase();
+            var redis = RedisConnectionHelp.Connection.GetDatabase();
             while (!quit)
             {
-                var size = cache.SortedSetLength("recent:");
+                var size = redis.SortedSetLength("recent:");
                 if (size <= LIMIT)
                 {
                     Thread.Sleep(1000);
                     continue;
                 }
                 var endIndex = Math.Min(size - LIMIT, 100);
-                var tokens = cache.SortedSetRangeByRank("recent:", 0, endIndex - 1);
+                var tokens = redis.SortedSetRangeByRank("recent:", 0, endIndex - 1);
                 var sessionKeys = tokens.Select(t => (RedisKey)$"viewed:{t}").
                     Union(tokens.Select(t => (RedisKey)$"cart:{t}")).ToArray();
-                cache.KeyDelete(sessionKeys);
-                cache.HashDelete("login:", tokens);
-                cache.SortedSetRemove("recent:", tokens);
+                redis.KeyDelete(sessionKeys);
+                redis.HashDelete("login:", tokens);
+                redis.SortedSetRemove("recent:", tokens);
             }
         }
     }
