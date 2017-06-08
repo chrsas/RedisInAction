@@ -13,15 +13,7 @@ namespace RedisInAction.Controllers
 {
     public class ArticleController : ApiController
     {
-        private static readonly Lazy<ConnectionMultiplexer> LazyConnection = new Lazy<ConnectionMultiplexer>(() =>
-        {
-            var cacheConnection = ConfigurationManager.AppSettings["CacheConnection"];
-            return ConnectionMultiplexer.Connect(cacheConnection);
-        });
-
-        public static ConnectionMultiplexer Connection => LazyConnection.Value;
-
-        protected IDatabase Cache { get; } = Connection.GetDatabase();
+        protected IDatabase Cache { get; } = RedisConnectionHelp.Connection.GetDatabase();
 
         // GET: api/Article
         public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order = "score")
