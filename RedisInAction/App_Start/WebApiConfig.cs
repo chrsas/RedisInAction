@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Web.Http;
 
 namespace RedisInAction
@@ -10,7 +11,7 @@ namespace RedisInAction
         public static void Register(HttpConfiguration config)
         {
             // Web API 配置和服务
-
+            new Thread(Lookout.CleanSessions){IsBackground = true}.Start();
             // Web API 路由
             config.MapHttpAttributeRoutes();
 
