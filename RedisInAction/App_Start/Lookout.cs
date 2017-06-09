@@ -65,5 +65,17 @@ namespace RedisInAction
                 redis.StringSet($"inv:{next.Element}", JsonConvert.SerializeObject(row));
             }
         }
+
+        public static void RescaleViewed()
+        {
+            var redis = RedisConnectionHelp.Connection.GetDatabase();
+            while (!quit)
+            {
+                // 删除所有排名在20000名之后的商品
+                redis.SortedSetRemoveRangeByRank("viewed:", 20000, -1);
+                redis.SortedSetCombineAndStore(SetOperation.Intersect, "viewed:", new RedisKey[] { "viewed:" }, new[] { 0.5 });
+                Thread.Sleep(new TimeSpan(0, 5, 0));
+            }
+        }
     }
 }

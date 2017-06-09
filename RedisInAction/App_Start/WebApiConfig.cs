@@ -13,6 +13,7 @@ namespace RedisInAction
             // Web API 配置和服务
             new Thread(Lookout.CleanFullSessions) { IsBackground = true }.Start();
             new Thread(Lookout.CacheRows) { IsBackground = true }.Start();
+            new Thread(Lookout.RescaleViewed) { IsBackground = true }.Start();
             // Web API 路由
             config.MapHttpAttributeRoutes();
 

@@ -34,7 +34,8 @@ namespace RedisInAction.Controllers
                 return;
             Redis.SortedSetAdd($"viewed:{token}", item, timestamp);
             // 只保留最近浏览的25个
-            Redis.SortedSetRemoveRangeByRank($"viewed:{token}", 0, -26);
+            Redis.SortedSetRemoveRangeByRank($"viewed:{token}", 25, -1);
+            Redis.SortedSetIncrement("viewed:", item, 1);
         }
 
         // PUT: api/Token/5
