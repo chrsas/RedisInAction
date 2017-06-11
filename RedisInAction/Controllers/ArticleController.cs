@@ -21,14 +21,19 @@ namespace RedisInAction.Controllers
             var start = (pageIndex - 1) * pageElements;
             var end = start + pageElements - 1;
             var ids = Redis.SortedSetRangeByRank($"{order}:", start, end, Order.Descending);
+            if (!ids.Any())
+                return Ok();
             var articles = new List<Article>();
-            foreach (var id in ids)
+            var transaction = Redis.CreateTransaction();
+            var artcilesData = ids.Select(id => transaction.HashGetAllAsync(id.ToString())).ToArray();
+            if (!transaction.Execute())
+                return BadRequest("数据库发生异常");
+            foreach (var artcileData in artcilesData)
             {
                 var article = new Article();
-                var articleData = Redis.HashGetAll(id.ToString());
-                foreach (var entry in from ad in articleData
-                                      join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
-                                      select new { a, ad.Value })
+                foreach (var entry in from ad in artcileData.Result
+                    join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
+                    select new {a, ad.Value})
                 {
                     if (entry.a.PropertyType == typeof(int))
                         entry.a.SetValue(article, int.Parse(entry.Value.ToString()));
