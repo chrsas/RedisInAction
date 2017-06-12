@@ -3,6 +3,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -32,8 +33,8 @@ namespace RedisInAction.Controllers
             {
                 var article = new Article();
                 foreach (var entry in from ad in artcileData.Result
-                    join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
-                    select new {a, ad.Value})
+                                      join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
+                                      select new { a, ad.Value })
                 {
                     if (entry.a.PropertyType == typeof(int))
                         entry.a.SetValue(article, int.Parse(entry.Value.ToString()));
@@ -98,10 +99,17 @@ namespace RedisInAction.Controllers
                 return BadRequest("article's publish time lost");
             if (cutoff > articleTime.Value)
                 return BadRequest("out of time");
-            if (!Redis.SetAdd($"voted:{id}", $"user:{userId}"))
+            var trans = Redis.CreateTransaction();
+            var voted = trans.SetAddAsync($"voted:{id}", $"user:{userId}");
+            // 为文章的投票设置过期时间，防止过多的投票结果用完内存
+            trans.KeyExpireAsync($"voted:{id}", new TimeSpan(0, 0, (int)(articleTime.Value - cutoff)));
+            trans.Execute();
+            if (!voted.Result)
                 return BadRequest("you have already voted this article");
-            Redis.SortedSetIncrement("score:", articleKey, VOTE_SCORE);
-            return Ok(Redis.HashIncrement(articleKey, "votes"));
+            trans.SortedSetIncrementAsync("score:", articleKey, VOTE_SCORE);
+            var votes = trans.HashIncrementAsync(articleKey, "votes");
+            trans.Execute();
+            return Ok(votes.Result);
         }
 
         [HttpPost]
