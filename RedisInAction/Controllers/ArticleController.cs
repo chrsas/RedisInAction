@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
 using System.Web.Http;
 
 namespace RedisInAction.Controllers
@@ -88,28 +89,42 @@ namespace RedisInAction.Controllers
         private const int VOTE_SCORE = 86400 / 200;
 
         [HttpPost]
-        public IHttpActionResult Vote(int id, [FromUri]int userId)
+        public async Task<IHttpActionResult> Vote(int id, [FromUri]int userId)
         {
             var articleKey = $"article:{id}";
-            if (!Redis.KeyExists(articleKey))
+            if (!await Redis.KeyExistsAsync(articleKey))
                 return BadRequest("article does not exist");
             var cutoff = DateTimeOffset.Now.AddDays(-7).ToUnixTimeSeconds();
-            var articleTime = Redis.SortedSetScore("time:", articleKey);
+            var articleTime = await Redis.SortedSetScoreAsync("time:", articleKey);
             if (!articleTime.HasValue)
                 return BadRequest("article's publish time lost");
             if (cutoff > articleTime.Value)
                 return BadRequest("out of time");
+            var voted = $"voted:{id}";
             var trans = Redis.CreateTransaction();
-            var voted = trans.SetAddAsync($"voted:{id}", $"user:{userId}");
-            // 为文章的投票设置过期时间，防止过多的投票结果用完内存
-            trans.KeyExpireAsync($"voted:{id}", new TimeSpan(0, 0, (int)(articleTime.Value - cutoff)));
-            trans.Execute();
-            if (!voted.Result)
-                return BadRequest("you have already voted this article");
-            trans.SortedSetIncrementAsync("score:", articleKey, VOTE_SCORE);
-            var votes = trans.HashIncrementAsync(articleKey, "votes");
-            trans.Execute();
-            return Ok(votes.Result);
+            var user = $"user:{userId}";
+            Task<long> votedResult = null;
+            while (cutoff < articleTime.Value)
+            {
+                var currentVotedLength = trans.SetLengthAsync(voted);
+                var isMember = trans.SetContainsAsync(voted, user);
+                await trans.ExecuteAsync();
+                if (isMember.Result)
+                    return BadRequest("you have already voted this article");
+                trans.AddCondition(Condition.SetLengthEqual(voted, currentVotedLength.Result));
+#pragma warning disable CS4014 
+                trans.SetAddAsync(voted, user);
+                // 为文章的投票设置过期时间，防止过多的投票结果用完内存
+                trans.KeyExpireAsync($"voted:{id}", new TimeSpan(0, 0, (int)(articleTime.Value - cutoff)));
+                trans.SortedSetIncrementAsync("score:", articleKey, VOTE_SCORE);
+#pragma warning restore CS4014
+                votedResult = trans.HashIncrementAsync(articleKey, "votes");
+                if (await trans.ExecuteAsync())
+                    break;
+            }
+            if (votedResult == null)
+                return BadRequest("out of time");
+            return Ok(votedResult.Result);
         }
 
         [HttpPost]
