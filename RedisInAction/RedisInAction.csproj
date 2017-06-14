@@ -93,6 +93,7 @@
     <Compile Include="App_Start\Lookout.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\ArticleController.cs" />
+    <Compile Include="Controllers\CommodityController.cs" />
     <Compile Include="Controllers\RowController.cs" />
     <Compile Include="Controllers\TokenController.cs" />
     <Compile Include="Global.asax.cs">
