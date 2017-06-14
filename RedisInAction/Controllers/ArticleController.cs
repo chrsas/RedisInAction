@@ -122,9 +122,9 @@ namespace RedisInAction.Controllers
                 if (await trans.ExecuteAsync())
                     break;
             }
-            if (votedResult == null)
-                return BadRequest("out of time");
-            return Ok(votedResult.Result);
+            if (votedResult?.Status == TaskStatus.RanToCompletion)
+                return Ok((decimal)votedResult.Result);
+            return BadRequest("Time out");
         }
 
         [HttpPost]
