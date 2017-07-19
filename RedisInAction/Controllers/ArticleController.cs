@@ -11,33 +11,28 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web.Http;
 
-namespace RedisInAction.Controllers
-{
-    public class ArticleController : ApiController
-    {
+namespace RedisInAction.Controllers {
+    public class ArticleController : ApiController {
         protected IDatabase Redis { get; } = RedisConnectionHelp.Connection.GetDatabase();
 
         // GET: api/Article
-        public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order = "score")
-        {
+        public IHttpActionResult Get([FromUri]int pageIndex, [FromUri]int pageElements, [FromUri]string order = "score") {
             var start = (pageIndex - 1) * pageElements;
             var end = start + pageElements - 1;
             var ids = Redis.SortedSetRangeByRank($"{order}:", start, end, Order.Descending);
-            if (!ids.Any())
+            if(!ids.Any())
                 return Ok();
             var articles = new List<Article>();
             var transaction = Redis.CreateTransaction();
             var artcilesData = ids.Select(id => transaction.HashGetAllAsync(id.ToString())).ToArray();
-            if (!transaction.Execute())
+            if(!transaction.Execute())
                 return BadRequest("数据库发生异常");
-            foreach (var artcileData in artcilesData)
-            {
+            foreach(var artcileData in artcilesData) {
                 var article = new Article();
-                foreach (var entry in from ad in artcileData.Result
-                                      join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
-                                      select new { a, ad.Value })
-                {
-                    if (entry.a.PropertyType == typeof(int))
+                foreach(var entry in from ad in artcileData.Result
+                                     join a in article.GetType().GetProperties() on ad.Name.ToString() equals a.Name.ToLower()
+                                     select new { a, ad.Value }) {
+                    if(entry.a.PropertyType == typeof(int))
                         entry.a.SetValue(article, int.Parse(entry.Value.ToString()));
                     else
                         entry.a.SetValue(article, entry.Value.ToString());
@@ -48,14 +43,12 @@ namespace RedisInAction.Controllers
         }
 
         // GET: api/Article/5
-        public string Get(int id)
-        {
+        public string Get(int id) {
             return "value2";
         }
 
         // POST: api/Article
-        public IHttpActionResult Post([FromUri]string title, [FromUri]int userId, [FromUri]string link)
-        {
+        public IHttpActionResult Post([FromUri]string title, [FromUri]int userId, [FromUri]string link) {
             var articleId = Redis.StringIncrement("article:");
             var voted = $"voted:{articleId}";
             Redis.SetAdd(voted, $"user:{userId}");
@@ -77,39 +70,35 @@ namespace RedisInAction.Controllers
         }
 
         // PUT: api/Article/5
-        public void Put(int id, [FromBody]string value)
-        {
+        public void Put(int id, [FromBody]string value) {
         }
 
         // DELETE: api/Article/5
-        public void Delete(int id)
-        {
+        public void Delete(int id) {
         }
 
         private const int VOTE_SCORE = 86400 / 200;
 
         [HttpPost]
-        public async Task<IHttpActionResult> Vote(int id, [FromUri]int userId)
-        {
+        public async Task<IHttpActionResult> Vote(int id, [FromUri]int userId) {
             var articleKey = $"article:{id}";
-            if (!await Redis.KeyExistsAsync(articleKey))
+            if(!await Redis.KeyExistsAsync(articleKey))
                 return BadRequest("article does not exist");
             var cutoff = DateTimeOffset.Now.AddDays(-7).ToUnixTimeSeconds();
             var articleTime = await Redis.SortedSetScoreAsync("time:", articleKey);
-            if (!articleTime.HasValue)
+            if(!articleTime.HasValue)
                 return BadRequest("article's publish time lost");
-            if (cutoff > articleTime.Value)
+            if(cutoff > articleTime.Value)
                 return BadRequest("out of time");
             var voted = $"voted:{id}";
             var trans = Redis.CreateTransaction();
             var user = $"user:{userId}";
             Task<long> votedResult = null;
-            while (cutoff < articleTime.Value)
-            {
+            while(cutoff < articleTime.Value) {
                 var currentVotedLength = trans.SetLengthAsync(voted);
                 var isMember = trans.SetContainsAsync(voted, user);
                 await trans.ExecuteAsync();
-                if (isMember.Result)
+                if(isMember.Result)
                     return BadRequest("you have already voted this article");
                 trans.AddCondition(Condition.SetLengthEqual(voted, currentVotedLength.Result));
 #pragma warning disable CS4014 
@@ -119,24 +108,21 @@ namespace RedisInAction.Controllers
                 trans.SortedSetIncrementAsync("score:", articleKey, VOTE_SCORE);
 #pragma warning restore CS4014
                 votedResult = trans.HashIncrementAsync(articleKey, "votes");
-                if (await trans.ExecuteAsync())
+                if(await trans.ExecuteAsync())
                     break;
             }
-            if (votedResult?.Status == TaskStatus.RanToCompletion)
+            if(votedResult?.Status == TaskStatus.RanToCompletion)
                 return Ok((decimal)votedResult.Result);
             return BadRequest("Time out");
         }
 
         [HttpPost]
-        public IHttpActionResult AddRemoveGroups(int id, [FromUri]string[] toAdd, [FromUri]string[] toRemove)
-        {
+        public IHttpActionResult AddRemoveGroups(int id, [FromUri]string[] toAdd, [FromUri]string[] toRemove) {
             var article = $"article:{id}";
-            foreach (var item in toAdd)
-            {
+            foreach(var item in toAdd) {
                 Redis.SetAdd($"group:{item}:", article);
             }
-            foreach (var item in toRemove)
-            {
+            foreach(var item in toRemove) {
                 Redis.SetRemove($"group:{item}:", article);
             }
             return Ok();
@@ -144,11 +130,9 @@ namespace RedisInAction.Controllers
 
         [HttpGet]
         [ActionName("grouped")]
-        public IHttpActionResult GetGroupArticles([FromUri]string group, [FromUri]int pageIndex, [FromUri]int pageElements = 25, [FromUri]string order = "score")
-        {
+        public IHttpActionResult GetGroupArticles([FromUri]string group, [FromUri]int pageIndex, [FromUri]int pageElements = 25, [FromUri]string order = "score") {
             var key = $"{order}:{group}:";
-            if (!Redis.KeyExists(key))
-            {
+            if(!Redis.KeyExists(key)) {
                 Redis.SortedSetCombineAndStore(SetOperation.Intersect, key, $"group:{group}:", $"{order}:",
                     Aggregate.Max);
                 Redis.KeyExpire(key, new TimeSpan(0, 1, 0));

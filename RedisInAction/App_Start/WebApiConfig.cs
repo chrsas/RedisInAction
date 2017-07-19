@@ -4,12 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Web.Http;
 
-namespace RedisInAction
-{
-    public static class WebApiConfig
-    {
-        public static void Register(HttpConfiguration config)
-        {
+namespace RedisInAction {
+    public static class WebApiConfig {
+        public static void Register(HttpConfiguration config) {
             // Web API 配置和服务
             new Thread(Lookout.CleanFullSessions) { IsBackground = true }.Start();
             new Thread(Lookout.CacheRows) { IsBackground = true }.Start();

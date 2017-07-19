@@ -6,27 +6,21 @@ using Newtonsoft.Json;
 using RedisInAction.App_Data;
 using StackExchange.Redis;
 
-namespace RedisInAction
-{
-    public static class Lookout
-    {
+namespace RedisInAction {
+    public static class Lookout {
         private static bool quit;
 
-        public static void Quit()
-        {
+        public static void Quit() {
             quit = true;
         }
 
         private const int LIMIT = 1000_0000;
 
-        public static void CleanFullSessions()
-        {
+        public static void CleanFullSessions() {
             var redis = RedisConnectionHelp.Connection.GetDatabase();
-            while (!quit)
-            {
+            while(!quit) {
                 var size = redis.SortedSetLength("recent:");
-                if (size <= LIMIT)
-                {
+                if(size <= LIMIT) {
                     Thread.Sleep(1000);
                     continue;
                 }
@@ -40,21 +34,17 @@ namespace RedisInAction
             }
         }
 
-        public static void CacheRows()
-        {
+        public static void CacheRows() {
             var redis = RedisConnectionHelp.Connection.GetDatabase();
-            while (!quit)
-            {
+            while(!quit) {
                 var next = redis.SortedSetRangeByRankWithScores("schedule:", 0, 0).FirstOrDefault();
                 var timestamp = DateTimeOffset.Now.ToUnixTimeSeconds();
-                if (!next.Element.HasValue || next.Score > timestamp)
-                {
+                if(!next.Element.HasValue || next.Score > timestamp) {
                     Thread.Sleep(50);
                     continue;
                 }
                 var delay = redis.SortedSetScore("delay:", next.Element);
-                if (delay == null || delay < 0)
-                {
+                if(delay == null || delay < 0) {
                     redis.SortedSetRemove("delay:", next.Element);
                     redis.SortedSetRemove("schedule:", next.Element);
                     redis.KeyDelete($"inv:{next.Element}");
@@ -66,11 +56,9 @@ namespace RedisInAction
             }
         }
 
-        public static void RescaleViewed()
-        {
+        public static void RescaleViewed() {
             var redis = RedisConnectionHelp.Connection.GetDatabase();
-            while (!quit)
-            {
+            while(!quit) {
                 // 删除所有排名在20000名之后的商品
                 redis.SortedSetRemoveRangeByRank("viewed:", 20000, -1);
                 redis.SortedSetCombineAndStore(SetOperation.Intersect, "viewed:", new RedisKey[] { "viewed:" }, new[] { 0.5 });
