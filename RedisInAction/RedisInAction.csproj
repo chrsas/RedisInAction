@@ -85,7 +85,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Global.asax" />
-    <Content Include="Web.config" />
+    <Content Include="Web.config">
+      <SubType>Designer</SubType>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Data\Inventory.cs" />
@@ -95,6 +97,7 @@
     <Compile Include="Controllers\ArticleController.cs" />
     <Compile Include="Controllers\CommodityController.cs" />
     <Compile Include="Controllers\LocationController.cs" />
+    <Compile Include="Controllers\LogController.cs" />
     <Compile Include="Controllers\RowController.cs" />
     <Compile Include="Controllers\TokenController.cs" />
     <Compile Include="Global.asax.cs">
