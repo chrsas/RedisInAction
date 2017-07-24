@@ -27,13 +27,42 @@ namespace RedisInAction.Controllers {
         }
 
         // POST: api/Log
-        public void Post([FromUri]string name, [FromUri]string message, [FromUri]string severity = INFO, IBatch pipeline = null) {
+        public void Post([FromBody]string name, [FromBody]string message, [FromBody]string severity = INFO, IBatch pipeline = null) {
             var destination = $"recent:{name}:{severity}";
-            message = $"{DateTime.Now} {message}";
             var batch = pipeline ?? Redis.CreateBatch();
-            batch.ListLeftPushAsync(destination, message);
+            batch.ListLeftPushAsync(destination, $"{DateTime.Now} {message}");
             batch.ListTrimAsync(destination, 0, 99);
             batch.Execute();
+        }
+
+        [HttpPost]
+        public void Common([FromUri]string name, [FromBody]string message, [FromUri]string severity = INFO, [FromUri]int timeOut = 5) {
+            var commonDest = $"common:{name}:{severity}";
+            var startKey = $"{commonDest}:start";
+            var end = DateTime.Now.AddMilliseconds(timeOut);
+            while(DateTime.Now < end) {
+                var hourStart = DateTime.Now.ToString("yyyy-MM-dd HH:00");
+                var existing = Redis.StringGet(startKey);
+                var trans = Redis.CreateTransaction();
+                trans.AddCondition(Condition.StringEqual(startKey, existing));
+                if(existing.HasValue && DateTime.Parse(existing) < DateTime.Parse(hourStart)) {
+                    trans.KeyRenameAsync(commonDest, $"{commonDest}:last");
+                    trans.KeyRenameAsync(startKey, $"{commonDest}:pstart");
+                    trans.StringSetAsync(startKey, hourStart);
+                } else if(!existing.HasValue)
+                    trans.StringSetAsync(startKey, hourStart);
+                trans.SortedSetIncrementAsync(commonDest, message, 1);
+                var recentDest = $"recent:{name}:{severity}";
+                trans.ListLeftPushAsync(recentDest, $"{DateTime.Now} {message}");
+                trans.ListTrimAsync(recentDest, 0, 99);
+                if(trans.Execute())
+                    break;
+            }
+        }
+
+        [HttpPost]
+        public void Test([FromBody]string name, [FromBody]string message) {
+
         }
 
         // PUT: api/Log/5
