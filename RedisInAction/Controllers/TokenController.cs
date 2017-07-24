@@ -65,11 +65,11 @@ namespace RedisInAction.Controllers {
             return Ok(Redis.HashGet("login:", token));
         }
 
-        [HttpPost]
+        [HttpGet]
         public IHttpActionResult BenchmarkUpdate([FromUri]int duration) {
             var methodes = new List<Tuple<Action<string, int, string>, string>>
             {
-                new Tuple<Action<string, int, string>, string>(this.Post, nameof(this.Post)),
+                new Tuple<Action<string, int, string>, string>(Post, nameof(this.Post)),
                 new Tuple<Action<string, int, string>, string>(Batch, nameof(this.Batch))
             };
             var strList = new List<string>();
