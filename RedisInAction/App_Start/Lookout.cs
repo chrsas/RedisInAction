@@ -15,7 +15,8 @@ namespace RedisInAction {
             quit = true;
         }
 
-        private const int LIMIT = 1000_0000;
+        public const int LIMIT = 1000_0000;
+        public const int SAMPLE_COUNT = 100;
 
         public static void CleanFullSessions() {
             var redis = RedisConnectionHelp.Connection.GetDatabase();
@@ -75,6 +76,44 @@ namespace RedisInAction {
                     Thread.Sleep(new TimeSpan(0, 5, 0));
                 } catch(RedisTimeoutException e) {
                     new LogController { Redis = redis }.Post(nameof(RedisTimeoutException), e.Message);
+                }
+            }
+        }
+
+        public static void CleanCounters() {
+            var redis = RedisConnectionHelp.Connection.GetDatabase();
+            var passes = default(int);
+            while(!quit) {
+                var start = DateTime.Now;
+                var index = default(int);
+                while(index < redis.SortedSetLength("known:")) {
+                    var hash = redis.SortedSetRangeByRank("known:", index, index).FirstOrDefault();
+                    index++;
+                    if(hash.IsNullOrEmpty)
+                        break;
+                    var prec = int.Parse(hash.ToString().Split(':').First());
+                    var bprec = Math.Max((int)Math.Floor(prec / 60.0), 1);
+                    if(passes % bprec != 0)
+                        continue;
+                    var hkey = $"count:{hash}";
+                    var cutoff = DateTimeOffset.Now.AddSeconds(SAMPLE_COUNT * prec).ToUnixTimeSeconds();
+                    var samples = redis.HashKeys(hkey).Select(rv => (int)rv).OrderBy(rv => rv);
+                    var removeItems = samples.Where(s => s <= cutoff).Select(s => (RedisValue)s).ToArray();
+                    if(removeItems.Any()) {
+                        redis.HashDelete(hkey, removeItems);
+                        if(removeItems.Length == samples.Count()) {
+                            if(!redis.KeyExists(hkey)) {
+                                var trans = redis.CreateTransaction();
+                                trans.AddCondition(Condition.KeyNotExists(hkey));
+                                trans.SortedSetRemoveAsync("known:", hash);
+                                trans.Execute();
+                                index--;
+                            }
+                        }
+                    }
+                    passes++;
+                    var duration = Math.Min((int)(DateTime.Now - start).TotalSeconds, 60);
+                    Thread.Sleep(Math.Max(duration, 1) * 1000);
                 }
             }
         }

@@ -11,6 +11,7 @@ namespace RedisInAction {
             new Thread(Lookout.CleanFullSessions) { IsBackground = true }.Start();
             new Thread(Lookout.CacheRows) { IsBackground = true }.Start();
             new Thread(Lookout.RescaleViewed) { IsBackground = true }.Start();
+            new Thread(Lookout.CleanCounters) { IsBackground = true }.Start();
             // Web API 路由
             config.MapHttpAttributeRoutes();
 
